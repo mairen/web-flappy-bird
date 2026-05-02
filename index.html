@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Flap - A Modern Web Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- The Main Game Canvas -->
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <!-- Score Display (Top) -->
+        <div id="score-display">0</div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="ui-overlay">
+            <h1>NEON<br>FLAP</h1>
+            <p>Click or press Space to jump</p>
+            <button id="start-btn">PLAY NOW</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="ui-overlay hidden">
+            <h2>GAME OVER</h2>
+            <div class="score-card">
+                <div class="score-label">SCORE</div>
+                <div id="final-score">0</div>
+                <div class="score-label">BEST</div>
+                <div id="best-score">0</div>
+            </div>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
