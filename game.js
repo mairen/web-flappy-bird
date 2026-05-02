@@ -32,8 +32,8 @@ const bird = {
     width: 30,
     height: 30,
     velocity: 0,
-    gravity: 0.25,
-    jump: -6,
+    gravity: 0.2,
+    jump: -4.5,
     rotation: 0,
     
     draw: function() {
@@ -99,7 +99,7 @@ const bird = {
 
 // Pipe Generator
 function spawnPipe() {
-    let gap = 150;
+    let gap = 180;
     let minHeight = 50;
     let maxHeight = canvas.height - gap - minHeight;
     let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
@@ -158,13 +158,13 @@ function update() {
     bird.update();
     
     // Pipe logic
-    if (frames % 120 === 0) {
+    if (frames % 150 === 0) {
         spawnPipe();
     }
     
     for (let i = pipes.length - 1; i >= 0; i--) {
         let p = pipes[i];
-        p.x -= 3; // Pipe speed
+        p.x -= 2; // Pipe speed
         
         // Collision detection (AABB vs point approximation)
         let hitTop = bird.x + 10 > p.x && bird.x - 10 < p.x + p.width && bird.y - 10 < p.topHeight;
