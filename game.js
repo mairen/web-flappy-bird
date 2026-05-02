@@ -21,8 +21,8 @@ let currentState = STATE.START;
 let frames = 0;
 let score = 0;
 let bestScore = localStorage.getItem('neonFlapBestScore') || 0;
-let pipes = []; // Logic pipes
-let pipeMeshes = []; // Three.js meshes
+let pipes = []; 
+let pipeMeshes = []; 
 let particles = [];
 
 // ==========================================
@@ -31,57 +31,110 @@ let particles = [];
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(400, 600);
 renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0d0e15, 0.05);
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.02); // Light blue sky fog
 
 const camera = new THREE.PerspectiveCamera(60, 400 / 600, 0.1, 1000);
 camera.position.set(0, 0, 15);
 
-// Lights
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft white light
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 10);
-scene.add(dirLight);
+const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2); // Warm sun
+sunLight.position.set(10, 20, 10);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 50;
+sunLight.shadow.camera.left = -15;
+sunLight.shadow.camera.right = 15;
+sunLight.shadow.camera.top = 15;
+sunLight.shadow.camera.bottom = -15;
+scene.add(sunLight);
 
-const pointLight = new THREE.PointLight(0x00ffa2, 1, 20);
-scene.add(pointLight);
+// ==========================================
+// Textures & Materials
+// ==========================================
+const textureLoader = new THREE.TextureLoader();
 
-// Background Grid
-const gridHelper = new THREE.GridHelper(100, 100, 0x00b8ff, 0x111122);
-gridHelper.position.y = -10;
-gridHelper.position.z = -10;
-scene.add(gridHelper);
+const loadTex = (path, repeatX = 1, repeatY = 1) => {
+    const tex = textureLoader.load(path);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    return tex;
+};
 
-// Materials
-const birdMat = new THREE.MeshStandardMaterial({ 
-    color: 0x00ffa2, 
-    emissive: 0x00ffa2,
-    emissiveIntensity: 0.5,
-    roughness: 0.2,
-    metalness: 0.8
-});
+// Replace with generated texture paths
+const grassTex = loadTex('assets/grass_texture_1777703522831.png', 10, 10);
+const skyTex = loadTex('assets/sky_texture_1777703536214.png');
+const treeTex = loadTex('assets/tree_texture_1777703548801.png', 1, 3);
+const metalTex = loadTex('assets/metal_texture_1777703561865.png', 1, 3);
+const stoneTex = loadTex('assets/stone_texture_1777703573297.png', 1, 3);
 
-const pipeMat = new THREE.MeshStandardMaterial({
-    color: 0x6f00ff,
-    emissive: 0x3a0088,
-    emissiveIntensity: 0.2,
-    roughness: 0.1,
-    metalness: 0.5
-});
+// Ground
+const groundGeo = new THREE.PlaneGeometry(100, 100);
+const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9, metalness: 0 });
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+groundMesh.rotation.x = -Math.PI / 2;
+groundMesh.position.y = -10;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
 
-// Bird Mesh (Spaceship/Cone)
-const birdGeo = new THREE.ConeGeometry(0.8, 1.5, 4);
-const birdMesh = new THREE.Mesh(birdGeo, birdMat);
-// Rotate so it points right
-birdMesh.geometry.rotateZ(-Math.PI / 2);
-scene.add(birdMesh);
+// SkyDome
+const skyGeo = new THREE.SphereGeometry(100, 32, 32);
+const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
+const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+scene.add(skyMesh);
 
-// Helper function to map 2D coordinates (400x600) to 3D space
-// 400 width maps to roughly -7 to 7
-// 600 height maps to roughly 10 to -10
+// Pipe Materials
+const pipeMaterials = [
+    { type: 'tree', mat: new THREE.MeshStandardMaterial({ map: treeTex, roughness: 0.9, metalness: 0 }) },
+    { type: 'metal', mat: new THREE.MeshStandardMaterial({ map: metalTex, roughness: 0.4, metalness: 0.6 }) },
+    { type: 'stone', mat: new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 1.0, metalness: 0 }) }
+];
+
+// ==========================================
+// The Realistic Bird
+// ==========================================
+const birdGroup = new THREE.Group();
+
+// Body
+const bodyGeo = new THREE.SphereGeometry(0.7, 16, 16);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.5 });
+const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+bodyMesh.castShadow = true;
+birdGroup.add(bodyMesh);
+
+// Beak
+const beakGeo = new THREE.ConeGeometry(0.2, 0.8, 8);
+const beakMat = new THREE.MeshStandardMaterial({ color: 0xff5500 });
+const beakMesh = new THREE.Mesh(beakGeo, beakMat);
+beakMesh.rotation.z = -Math.PI / 2;
+beakMesh.position.x = 0.8;
+beakMesh.castShadow = true;
+birdGroup.add(beakMesh);
+
+// Wings
+const wingGeo = new THREE.BoxGeometry(0.8, 0.1, 1.2);
+const wingMat = new THREE.MeshStandardMaterial({ color: 0xdd8800 });
+const leftWing = new THREE.Mesh(wingGeo, wingMat);
+leftWing.position.set(0, 0, 0.7);
+leftWing.castShadow = true;
+const rightWing = new THREE.Mesh(wingGeo, wingMat);
+rightWing.position.set(0, 0, -0.7);
+rightWing.castShadow = true;
+birdGroup.add(leftWing);
+birdGroup.add(rightWing);
+
+scene.add(birdGroup);
+
+// Coordinate Mapping (2D to 3D)
 const SCALE = 0.035;
 function mapX(x2d) { return (x2d - 200) * SCALE; }
 function mapY(y2d) { return -(y2d - 300) * SCALE; }
@@ -89,7 +142,7 @@ function mapW(w2d) { return w2d * SCALE; }
 function mapH(h2d) { return h2d * SCALE; }
 
 // ==========================================
-// 2D Physics Engine (Retained for feel)
+// 2D Physics Engine 
 // ==========================================
 const bird = {
     x: 100,
@@ -105,43 +158,47 @@ const bird = {
         this.velocity += this.gravity;
         this.y += this.velocity;
         
-        // Floor collision
         if (this.y + this.height/2 >= 600) {
             this.y = 600 - this.height/2;
             gameOver();
         }
         
-        // Ceiling collision
         if (this.y - this.height/2 <= 0) {
             this.y = this.height/2;
             this.velocity = 0;
         }
         
-        // Update 3D Mesh
-        birdMesh.position.x = mapX(this.x);
-        birdMesh.position.y = mapY(this.y);
+        // Sync 3D Mesh
+        birdGroup.position.x = mapX(this.x);
+        birdGroup.position.y = mapY(this.y);
         
-        // Tilt based on velocity
         this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
-        birdMesh.rotation.z = -this.rotation;
+        birdGroup.rotation.z = -this.rotation;
         
-        // Light follows bird
-        pointLight.position.copy(birdMesh.position);
-        pointLight.position.z += 2;
+        // Flap Wings Animation
+        if (this.velocity < 0) {
+            // Flapping down
+            leftWing.rotation.x = Math.max(-Math.PI / 4, leftWing.rotation.x - 0.2);
+            rightWing.rotation.x = Math.min(Math.PI / 4, rightWing.rotation.x + 0.2);
+        } else {
+            // Gliding / Returning
+            leftWing.rotation.x = Math.min(0, leftWing.rotation.x + 0.1);
+            rightWing.rotation.x = Math.max(0, rightWing.rotation.x - 0.1);
+        }
     },
     
     flap: function() {
         this.velocity = this.jump;
-        createParticles(this.x - 10, this.y, 5, 0x00b8ff);
+        createParticles(this.x - 10, this.y, 5, 0xffffff); // feather particles
     },
     
     reset: function() {
         this.y = 300;
         this.velocity = 0;
         this.rotation = 0;
-        birdMesh.position.x = mapX(this.x);
-        birdMesh.position.y = mapY(this.y);
-        birdMesh.rotation.z = 0;
+        birdGroup.position.x = mapX(this.x);
+        birdGroup.position.y = mapY(this.y);
+        birdGroup.rotation.z = 0;
     }
 };
 
@@ -162,35 +219,39 @@ function spawnPipe() {
     };
     pipes.push(pipeLogic);
     
-    // Create 3D Meshes for top and bottom pipes
+    // Pick random material type
+    const randomStyle = pipeMaterials[Math.floor(Math.random() * pipeMaterials.length)];
     const pWidth = mapW(pipeLogic.width);
     
-    // Top Pipe
-    const tHeight = mapH(pipeLogic.topHeight);
-    const topGeo = new THREE.BoxGeometry(pWidth, tHeight, pWidth);
-    const topMesh = new THREE.Mesh(topGeo, pipeMat);
-    topMesh.position.y = mapY(pipeLogic.topHeight / 2);
+    let topGeo, botGeo;
+    if (randomStyle.type === 'stone') {
+        topGeo = new THREE.BoxGeometry(pWidth, mapH(pipeLogic.topHeight), pWidth);
+        botGeo = new THREE.BoxGeometry(pWidth, mapH(600 - pipeLogic.bottomY), pWidth);
+    } else {
+        topGeo = new THREE.CylinderGeometry(pWidth/2, pWidth/2, mapH(pipeLogic.topHeight), 16);
+        botGeo = new THREE.CylinderGeometry(pWidth/2, pWidth/2, mapH(600 - pipeLogic.bottomY), 16);
+    }
     
-    // Bottom Pipe
-    const bHeight = mapH(600 - pipeLogic.bottomY);
-    const botGeo = new THREE.BoxGeometry(pWidth, bHeight, pWidth);
-    const botMesh = new THREE.Mesh(botGeo, pipeMat);
+    const topMesh = new THREE.Mesh(topGeo, randomStyle.mat);
+    topMesh.position.y = mapY(pipeLogic.topHeight / 2);
+    topMesh.castShadow = true;
+    topMesh.receiveShadow = true;
+    
+    const botMesh = new THREE.Mesh(botGeo, randomStyle.mat);
     botMesh.position.y = mapY(pipeLogic.bottomY + (600 - pipeLogic.bottomY) / 2);
+    botMesh.castShadow = true;
+    botMesh.receiveShadow = true;
     
     scene.add(topMesh);
     scene.add(botMesh);
     
-    pipeMeshes.push({
-        id: pipeLogic.id,
-        top: topMesh,
-        bot: botMesh
-    });
+    pipeMeshes.push({ id: pipeLogic.id, top: topMesh, bot: botMesh });
 }
 
 // Particle System
 function createParticles(x, y, count, colorHex) {
     const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
-    const pGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const pGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
     
     for (let i = 0; i < count; i++) {
         let pMesh = new THREE.Mesh(pGeo, pMat);
@@ -199,9 +260,9 @@ function createParticles(x, y, count, colorHex) {
         
         particles.push({
             mesh: pMesh,
-            vx: (Math.random() - 0.5) * 0.2,
-            vy: (Math.random() - 0.5) * 0.2,
-            vz: (Math.random() - 0.5) * 0.2,
+            vx: (Math.random() - 0.5) * 0.1,
+            vy: (Math.random() - 0.5) * 0.1 + 0.1, // float up
+            vz: (Math.random() - 0.5) * 0.1,
             life: 1
         });
     }
@@ -213,11 +274,8 @@ function updateParticles() {
         p.mesh.position.x += p.vx;
         p.mesh.position.y += p.vy;
         p.mesh.position.z += p.vz;
-        p.mesh.rotation.x += 0.1;
-        p.mesh.rotation.y += 0.1;
-        p.life -= 0.02;
+        p.life -= 0.05;
         
-        // Scale down
         p.mesh.scale.setScalar(Math.max(0, p.life));
         
         if (p.life <= 0) {
@@ -235,14 +293,9 @@ function update() {
     
     bird.update();
     
-    // Animate Background
-    gridHelper.position.z += 0.05;
-    if(gridHelper.position.z > 0) gridHelper.position.z = -10;
+    // Animate Ground
+    grassTex.offset.x += 0.005;
     
-    // Add slow rotation to bird for 3D effect
-    birdMesh.rotation.x += 0.05;
-    
-    // Pipe logic
     if (frames % 200 === 0) {
         spawnPipe();
     }
@@ -251,7 +304,6 @@ function update() {
         let p = pipes[i];
         p.x -= 1.5; // Pipe speed
         
-        // Sync 3D Meshes
         let meshes = pipeMeshes.find(m => m.id === p.id);
         if (meshes) {
             meshes.top.position.x = mapX(p.x + p.width/2);
@@ -263,18 +315,16 @@ function update() {
         let hitBottom = bird.x + 10 > p.x && bird.x - 10 < p.x + p.width && bird.y + 10 > p.bottomY;
         
         if (hitTop || hitBottom) {
-            createParticles(bird.x, bird.y, 20, 0xff3366); // explosion
+            createParticles(bird.x, bird.y, 30, 0xff0000); 
             gameOver();
         }
         
-        // Score update
         if (p.x + p.width < bird.x && !p.passed) {
             score++;
             scoreDisplay.innerText = score;
             p.passed = true;
         }
         
-        // Remove off-screen pipes
         if (p.x + p.width < 0) {
             pipes.splice(i, 1);
             if (meshes) {
@@ -302,11 +352,14 @@ function loop() {
         
         if (currentState === STATE.START) {
             // Idle animation
-            birdMesh.position.y = mapY(bird.y) + Math.sin(Date.now() * 0.005) * 0.5;
-            birdMesh.rotation.x += 0.02;
-            birdMesh.rotation.y += 0.02;
+            birdGroup.position.y = mapY(bird.y) + Math.sin(Date.now() * 0.005) * 0.5;
+            leftWing.rotation.x = Math.sin(Date.now() * 0.01) * 0.2;
+            rightWing.rotation.x = -Math.sin(Date.now() * 0.01) * 0.2;
         }
     }
+    
+    // Rotate sky slowly
+    skyMesh.rotation.y += 0.0005;
     
     renderer.render(scene, camera);
 }
@@ -337,7 +390,6 @@ function gameOver() {
 }
 
 function resetGame() {
-    // Clear pipes
     pipes = [];
     pipeMeshes.forEach(m => {
         scene.remove(m.top);
@@ -349,7 +401,6 @@ function resetGame() {
     });
     pipeMeshes = [];
     
-    // Clear particles
     particles.forEach(p => {
         scene.remove(p.mesh);
         p.mesh.geometry.dispose();
@@ -368,21 +419,15 @@ function resetGame() {
     startScreen.classList.remove('hidden');
 }
 
-// Input Event Listeners
 window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
-        if (currentState === STATE.START) {
-            startGame();
-        } else if (currentState === STATE.PLAYING) {
-            bird.flap();
-        }
+        if (currentState === STATE.START) startGame();
+        else if (currentState === STATE.PLAYING) bird.flap();
     }
 });
 
 canvas.addEventListener('mousedown', () => {
-    if (currentState === STATE.PLAYING) {
-        bird.flap();
-    }
+    if (currentState === STATE.PLAYING) bird.flap();
 });
 
 startBtn.addEventListener('click', startGame);
